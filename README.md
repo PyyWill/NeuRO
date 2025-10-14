@@ -106,7 +106,7 @@ pip install -r requirements.txt
 
 2. Download data and checkpoints
 
-Thanks to the excellent work [MultiON](https://shivanshpatel35.github.io/multi-ON/), we adopted the instruction sets from their work. You will need to run `download_multion_data.sh` from their root directory.
+Thanks to the excellent work [MultiON](https://shivanshpatel35.github.io/multi-ON/), we adopted the instruction sets from their work. You will need to run `download_multion_data.sh` from our root directory.
 
 
 
