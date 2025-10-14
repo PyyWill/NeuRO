@@ -135,28 +135,6 @@ For training the agent, run this from the root directory:
 python habitat_baselines/run.py --exp-config habitat_baselines/config/multinav/ppo_multinav.yaml --agent-type oracle-ego --run-type train
 ```
 
-## 📊 Experimental Results
-
-NeuRO demonstrates state-of-the-art performance on multi-object navigation tasks, particularly in generalization to unseen environments. The robust optimization framework enables the agent to handle uncertainty in visual predictions and transfer learned policies across different environments.
-
-### Performance Comparison
-
-| Methods | S-MON m=2: Test | | | | S-MON m=3: Test | | | |
-|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| | Success↑ | Progress↑ | SPL↑ | PPL↑ | Success↑ | Progress↑ | SPL↑ | PPL↑ |
-| SMT | 28 | 44 | 26 | 36 | 9 | 22 | 7 | 18 |
-| FRMQN | 29 | 42 | 24 | 33 | 13 | 29 | 11 | 24 |
-| OracleMap (Occ) | 34 | 47 | 25 | 35 | 16 | 36 | 12 | 27 |
-| ProjNeuralMap | 45 | 57 | 30 | 39 | 27 | 46 | 18 | 31 |
-| ObjRecogMap | 51 | 62 | 38 | 45 | 22 | 40 | 17 | 30 |
-| OracleEgoMap | 64 | 71 | 49 | 54 | 40 | 54 | 25 | 36 |
-| OracleMap | 74 | 79 | 59 | 63 | 48 | 62 | 38 | 49 |
-| Lyon | 76 | 84 | 62 | 70 | 57 | 70 | 36 | 45 |
-| HTP-GCN | 76 | 84 | 60 | 67 | 57 | 70 | 27 | 33 |
-| **NeuRO (Ours)** | **80** | **86** | **66** | **72** | **62** | **72** | **40** | **47** |
-
-
-
 ## 📚 Citation
 
 If you find this work useful, please cite our paper:
