@@ -9,6 +9,27 @@
 [![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
 [![Supports Habitat Lab](https://img.shields.io/static/v1?label=supports&message=Habitat%20Lab&color=informational&link=https://github.com/facebookresearch/habitat-lab)](https://github.com/facebookresearch/habitat-lab)
 
+## 📋 TODO
+
+- ✅ Completed
+1. ~~Release complete architecture code on original MultiON tasks~~ *(10/13/2025)*
+
+- 🔄 In Progress
+1. Release optimal weights
+2. Others
+
+## 🗂️ Navigation
+
+- [📝 Abstract](#-abstract)
+- [🎬 Demo](#-a-demo-of-neuro-in-action)
+- [✨ Key Features](#-key-features)
+- [🛠️ Installation](#️-installation)
+- [🚀 Quick Start](#-quick-start)
+- [💻 Usage](#-usage)
+- [📚 Citation](#-citation)
+- [🙏 Acknowledgments](#-acknowledgments)
+
+
 ## 📝 Abstract
 
 > Visual navigation is a fundamental problem in embodied AI, yet practical deployments demand long-horizon planning capabilities to address multi-objective tasks. A major bottleneck is data scarcity: policies learned from limited data often overfit and fail to generalize OOD. Existing neural network-based agents typically increase architectural complexity that paradoxically become counterproductive in the small-sample regime. This paper introduce NeuRO, a integrated learning-to-optimize framework that tightly couples perception networks with downstream task-level robust optimization. Specifically, NeuRO addresses core difficulties in this integration: (i) it transforms noisy visual predictions under data scarcity into convex uncertainty sets using Partially Input Convex Neural Networks (PICNNs) with conformal calibration, which directly parameterize the optimization constraints; and (ii) it reformulates planning under partial observability as a robust optimization problem, enabling uncertainty-aware policies that transfer across environments. Extensive experiments on both unordered and sequential multi-object navigation tasks demonstrate that NeuRO establishes SoTA performance, particularly in generalization to unseen environments. Our work thus presents a significant advancement for developing robust, generalizable autonomous agents.
@@ -152,20 +173,4 @@ If you find this work useful, please cite our paper:
 
 This repository is built upon [Habitat Lab](https://github.com/facebookresearch/habitat-lab) and [MultiON](https://shivanshpatel35.github.io/multi-ON/). We thank the authors for their excellent work and for making their code publicly available.
 
-## 📄 License
-
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📋 TODO
-
-### ✅ Completed
-- ~~Release complete architecture code on original MultiON tasks~~ *(10/13/2025)*
-
-### 🔄 In Progress
-- Release optimal weights
-
-- Others
-
-## 📧 Contact
-
-For questions and issues, please open an issue on GitHub or contact [Yiyuan Pan](mailto:your-email@example.com).
