@@ -151,7 +151,6 @@ class PPONonOracle(nn.Module):
         action_loss_epoch /= num_updates
         dist_entropy_epoch /= num_updates
 
-        # print("\n Losses for update: value ",value_loss,"now action", action_loss, "now entropy", dist_entropy, "\n")
         return value_loss_epoch, action_loss_epoch, dist_entropy_epoch
 
     def before_backward(self, loss):
@@ -290,6 +289,7 @@ class PPOOracle(nn.Module):
                     - dist_entropy * self.entropy_coef
                 )
 
+
                 self.before_backward(total_loss)
                 total_loss.backward()
                 self.after_backward(total_loss)
@@ -308,7 +308,6 @@ class PPOOracle(nn.Module):
         action_loss_epoch /= num_updates
         dist_entropy_epoch /= num_updates
 
-        # print("\n Losses for update: value ",value_loss,"now action", action_loss, "now entropy", dist_entropy, "\n")
         return value_loss_epoch, action_loss_epoch, dist_entropy_epoch
 
     def before_backward(self, loss):

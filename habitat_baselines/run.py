@@ -28,7 +28,7 @@ def main():
     parser.add_argument(
         "--agent-type",
         choices=["no-map", "oracle", "oracle-ego", "proj-neural", "obj-recog"],
-        required=True,
+        default="oracle",
         help="agent type: oracle, oracleego, projneural, objrecog",
     )
 

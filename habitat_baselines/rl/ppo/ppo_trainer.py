@@ -17,7 +17,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch_scatter
-import tqdm
+from tqdm import tqdm
 from torch.optim.lr_scheduler import LambdaLR
 
 from habitat import Config, logger
@@ -129,6 +129,9 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
         Returns:
             dict containing checkpoint info
         """
+        # Add map_location to handle CUDA device mapping issues
+        if 'map_location' not in kwargs:
+            kwargs['map_location'] = 'cpu'
         return torch.load(checkpoint_path, *args, **kwargs)
 
     METRICS_BLACKLIST = {"top_down_map", "collisions.is_collision", "raw_metrics"}
@@ -353,10 +356,42 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
             lr_lambda=lambda x: linear_decay(x, self.config.NUM_UPDATES),
         )
 
+        start_update = 0
+        model_loaded = False
+        print("-"*80)
+        if self.config.RESUME_CKPT_PATH and self.config.RESUME_CKPT_PATH.strip():
+            try:
+                checkpoint = self.load_checkpoint(self.config.RESUME_CKPT_PATH)
+                self.agent.load_state_dict(checkpoint["state_dict"], strict=False)
+                model_loaded = True
+                print(f"Successfully loaded checkpoint from {self.config.RESUME_CKPT_PATH}")
+                
+                if "extra_state" in checkpoint:
+                    extra_state = checkpoint["extra_state"]
+                    start_update = extra_state.get("update", 0)
+                    count_steps = extra_state.get("step", 0)
+                    count_checkpoints = extra_state.get("checkpoint", 0)
+                    
+            except Exception as e:
+                print(f"Failed to load checkpoint: {e}, starting training from scratch")
+                start_update = 0
+                model_loaded = False
+        else:
+            print("Starting training from scratch")
+        print("-"*80)
         with TensorboardWriter(
             self.config.TENSORBOARD_DIR, flush_secs=self.flush_secs
         ) as writer:
-            for update in range(self.config.NUM_UPDATES):
+            # Create progress bar for main training loop
+            update_pbar = tqdm(
+                range(start_update, self.config.NUM_UPDATES),
+                desc="Training Updates",
+                unit="update",
+                initial=start_update,
+                total=self.config.NUM_UPDATES
+            )
+            
+            for update in update_pbar:
                 if ppo_cfg.use_linear_lr_decay:
                     lr_scheduler.step()
 
@@ -417,11 +452,6 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
                     total_left_actions + total_right_actions + total_look_up_actions + 
                     total_look_down_actions
                 )
-                # Check later why this assertion is not true
-                # total_actions = (total_stop_actions + total_forward_actions + 
-                #     total_left_actions + total_right_actions + total_look_up_actions + 
-                #     total_look_down_actions
-                # )
                 writer.add_histogram(
                     "map_encoder_cnn_0", self.actor_critic.net.map_encoder.cnn[0].weight, count_steps
                 )
@@ -551,7 +581,6 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
         config.TASK_CONFIG.DATASET.SPLIT = config.EVAL.SPLIT
         config.freeze()
 
-        # if len(self.config.VIDEO_OPTION) > 0 and np.random.uniform(0, 1) <= self.config.VIDEO_PROB:
         if len(self.config.VIDEO_OPTION) > 0:
             config.defrost()
             config.TASK_CONFIG.TASK.MEASUREMENTS.append("TOP_DOWN_MAP")
@@ -562,7 +591,7 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
         self.envs = construct_envs(config, get_env_class(config.ENV_NAME))
         self._setup_actor_critic_agent(ppo_cfg)
 
-        self.agent.load_state_dict(ckpt_dict["state_dict"])
+        self.agent.load_state_dict(ckpt_dict["state_dict"], strict=False)
         self.actor_critic = self.agent.actor_critic
 
         observations = self.envs.reset()
@@ -605,7 +634,7 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
         if len(self.config.VIDEO_OPTION) > 0:
             os.makedirs(self.config.VIDEO_DIR, exist_ok=True)
 
-        pbar = tqdm.tqdm(total=self.config.TEST_EPISODE_COUNT)
+        pbar = tqdm(total=self.config.TEST_EPISODE_COUNT)
         self.actor_critic.eval()
         while (
             len(stats_episodes) < self.config.TEST_EPISODE_COUNT
@@ -644,8 +673,6 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
                 device=self.device,
             )
 
-            # Reset global map
-            #test_global_map_visualization = not_done_masks.unsqueeze(2).unsqueeze(3).cpu() * test_global_map_visualization
 
             rewards = torch.tensor(
                 rewards, dtype=torch.float, device=self.device
@@ -713,12 +740,9 @@ class PPOTrainerNO(BaseRLTrainerNonOracle):
                     projection1 = projection1.squeeze(0).permute(1, 2, 0)
 
                     s = map_config.egocentric_map_size
-                    #temp = torch.max(test_global_map_visualization[i][grid_x - math.floor(s/2):grid_x + math.ceil(s/2),grid_y - math.floor(s/2):grid_y + math.ceil(s/2),:], projection1)
-                    #test_global_map_visualization[i][grid_x - math.floor(s/2):grid_x + math.ceil(s/2),grid_y - math.floor(s/2):grid_y + math.ceil(s/2),:] = temp
-                    #global_map1 = rotate_tensor(test_global_map_visualization[i][grid_x - math.floor(51/2):grid_x + math.ceil(51/2),grid_y - math.floor(51/2):grid_y + math.ceil(51/2),:].permute(2, 1, 0).unsqueeze(0), torch.tensor(-(observations[i]["compass"])).unsqueeze(0)).squeeze(0).permute(1, 2, 0).numpy()
                     egocentric_map = torch.sum(test_global_map[i, grid_x - math.floor(51/2):grid_x+math.ceil(51/2), grid_y - math.floor(51/2):grid_y + math.ceil(51/2),:], dim=2)
 
-                    frame = observations_to_image(observations[i], egocentric_map.data.cpu().numpy(), projection1.data.numpy(), global_map1, infos[i], actions[i].cpu().numpy())
+                    frame = observations_to_image(observations[i], egocentric_map.data.cpu().numpy(), projection1.data.numpy(), None, infos[i], actions[i].cpu().numpy())
                     rgb_frames[i].append(frame)
 
             (
@@ -931,7 +955,8 @@ class PPOTrainerO(BaseRLTrainerOracle):
             device=self.device,
             object_category_embedding_size=self.config.RL.OBJECT_CATEGORY_EMBEDDING_SIZE,
             previous_action_embedding_size=self.config.RL.PREVIOUS_ACTION_EMBEDDING_SIZE,
-            use_previous_action=self.config.RL.PREVIOUS_ACTION
+            use_previous_action=self.config.RL.PREVIOUS_ACTION,
+            enable_optimization=self.config.RL.ENABLE_OPTIMIZATION
         )
         self.actor_critic.to(self.device)
 
@@ -981,6 +1006,9 @@ class PPOTrainerO(BaseRLTrainerOracle):
         Returns:
             dict containing checkpoint info
         """
+        # Add map_location to handle CUDA device mapping issues
+        if 'map_location' not in kwargs:
+            kwargs['map_location'] = 'cpu'
         return torch.load(checkpoint_path, *args, **kwargs)
 
     METRICS_BLACKLIST = {"top_down_map", "collisions.is_collision", "raw_metrics", "traj_metrics"}
@@ -1041,6 +1069,7 @@ class PPOTrainerO(BaseRLTrainerOracle):
                 actions,
                 actions_log_probs,
                 recurrent_hidden_states,
+                optimization_loss,
             ) = self.actor_critic.act(
                 step_observation,
                 rollouts.recurrent_hidden_states[rollouts.step],
@@ -1063,6 +1092,22 @@ class PPOTrainerO(BaseRLTrainerOracle):
             rewards, dtype=torch.float, device=current_episode_reward.device
         )
         rewards = rewards.unsqueeze(1)
+
+        task_weight = 0.0
+        task_reward = optimization_loss
+        if not torch.is_tensor(task_reward):
+            task_reward = torch.tensor(task_reward, dtype=torch.float, device=current_episode_reward.device)
+        task_reward = task_reward.detach()
+        if task_reward.dim() == 0:
+            task_reward = task_reward.expand(rewards.shape[0]).unsqueeze(1)
+        elif task_reward.dim() == 1:
+            task_reward = task_reward.unsqueeze(1)
+        
+        task_reward = task_reward.to(rewards.device)
+        reward_vector = torch.cat([rewards, task_reward], dim=1)
+        goal_weights = torch.tensor([1.0, task_weight], device=rewards.device)
+        rewards = torch.sum(reward_vector * goal_weights.unsqueeze(0), dim=1, keepdim=True)
+
 
         masks = torch.tensor(
             [[0.0] if done else [1.0] for done in dones],
@@ -1199,10 +1244,43 @@ class PPOTrainerO(BaseRLTrainerOracle):
             lr_lambda=lambda x: linear_decay(x, self.config.NUM_UPDATES),
         )
 
+        start_update = 0
+        model_loaded = False
+        print("-"*80)
+        if self.config.RESUME_CKPT_PATH and self.config.RESUME_CKPT_PATH.strip():
+            try:
+                checkpoint = self.load_checkpoint(self.config.RESUME_CKPT_PATH)
+                self.agent.load_state_dict(checkpoint["state_dict"], strict=False)
+                model_loaded = True
+                print(f"Successfully loaded checkpoint from {self.config.RESUME_CKPT_PATH}")
+                
+                if "extra_state" in checkpoint:
+                    extra_state = checkpoint["extra_state"]
+                    start_update = extra_state.get("update", 0)
+                    count_steps = extra_state.get("step", 0)
+                    count_checkpoints = extra_state.get("checkpoint", 0)
+                    
+            except Exception as e:
+                print(f"Failed to load checkpoint: {e}, starting training from scratch")
+                start_update = 0
+                model_loaded = False
+        else:
+            print("Starting training from scratch")
+        print("-"*80)
+
         with TensorboardWriter(
             self.config.TENSORBOARD_DIR, flush_secs=self.flush_secs
         ) as writer:
-            for update in range(self.config.NUM_UPDATES):
+            # Create progress bar for main training loop
+            update_pbar = tqdm(
+                range(start_update, self.config.NUM_UPDATES),
+                desc="Training Updates",
+                unit="update",
+                initial=start_update,
+                total=self.config.NUM_UPDATES
+            )
+            
+            for update in update_pbar:
                 if ppo_cfg.use_linear_lr_decay:
                     lr_scheduler.step()
 
@@ -1376,7 +1454,7 @@ class PPOTrainerO(BaseRLTrainerOracle):
         self.envs = construct_envs(config, get_env_class(config.ENV_NAME))
         self._setup_actor_critic_agent(ppo_cfg)
 
-        self.agent.load_state_dict(ckpt_dict["state_dict"])
+        self.agent.load_state_dict(ckpt_dict["state_dict"], strict=False)
         self.actor_critic = self.agent.actor_critic
 
         observations = self.envs.reset()
@@ -1408,7 +1486,7 @@ class PPOTrainerO(BaseRLTrainerOracle):
         if len(self.config.VIDEO_OPTION) > 0:
             os.makedirs(self.config.VIDEO_DIR, exist_ok=True)
 
-        pbar = tqdm.tqdm(total=self.config.TEST_EPISODE_COUNT)
+        pbar = tqdm(total=self.config.TEST_EPISODE_COUNT)
         self.actor_critic.eval()
         while (
             len(stats_episodes) < self.config.TEST_EPISODE_COUNT
@@ -1481,10 +1559,6 @@ class PPOTrainerO(BaseRLTrainerOracle):
                         current_episodes[i].episode_id
                     ] = infos[i]["raw_metrics"]
 
-                    # traj_metrics_episodes[
-                    #     current_episodes[i].scene_id + '.' + 
-                    #     current_episodes[i].episode_id
-                    # ] = infos[i]["traj_metrics"]
 
                     if len(self.config.VIDEO_OPTION) > 0:
                         generate_video(
@@ -1496,7 +1570,6 @@ class PPOTrainerO(BaseRLTrainerOracle):
                             metrics=self._extract_scalars_from_info(infos[i]),
                             tb_writer=writer,
                         )
-                        # cv2.imwrite(config.VIDEO_DIR + '/' + current_episodes[i].episode_id + '.jpg', rgb_frames[i][-1])
 
                         rgb_frames[i] = []
 
@@ -1565,10 +1638,6 @@ class PPOTrainerO(BaseRLTrainerOracle):
             with open(config.TENSORBOARD_DIR_EVAL + '/metrics/' + checkpoint_path.split('/')[-1] + '.json', 'w') as fp:
                 json.dump(raw_metrics_episodes, fp)
 
-        # if not os.path.exists(config.TENSORBOARD_DIR_EVAL +'/traj_metrics'):
-        #     os.mkdir(config.TENSORBOARD_DIR_EVAL +'/traj_metrics')
-        # with open(config.TENSORBOARD_DIR_EVAL +'/traj_metrics/' + checkpoint_path.split('/')[-1] + '.json', 'w') as fp:
-        #     json.dump(traj_metrics_episodes, fp)
 
 
 

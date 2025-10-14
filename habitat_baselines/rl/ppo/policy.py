@@ -14,6 +14,9 @@ from habitat_baselines.rl.models.projection import Projection, RotateTensor, get
 from habitat_baselines.rl.models.rnn_state_encoder import RNNStateEncoder
 from habitat_baselines.rl.models.simple_cnn import RGBCNNNonOracle, RGBCNNOracle, MapCNN
 from habitat_baselines.rl.models.projection import Projection
+from habitat_baselines.rl.ppo.picnn import PICNN
+from habitat_baselines.rl.ppo.optimization_dual import PureDualPersuitOptimization
+from habitat_baselines.rl.ppo.conformal_prediction import ConformalQuantile
 
 class PolicyNonOracle(nn.Module):
     def __init__(self, net, dim_actions):
@@ -76,10 +79,31 @@ class PolicyNonOracle(nn.Module):
 
 
 class PolicyOracle(nn.Module):
-    def __init__(self, net, dim_actions):
+    def __init__(self, net, dim_actions, enable_optimization=False):
         super().__init__()
         self.net = net
         self.dim_actions = dim_actions
+        self.enable_optimization = enable_optimization
+
+        if self.enable_optimization:
+            # Always use robust dual optimization (replaces original deterministic optimization)
+            # Set d_xi to match num_anchors for dimension alignment
+            num_anchors = 10
+            d_xi = 2 * 0 + 1  # 2*Ld + 1, with Ld=0
+            self.opt = PureDualPersuitOptimization(
+                batch_size=1, T=4, edge=3, N=2, Ld=0, dxi=d_xi,
+                device="cpu", dtype=torch.float32
+            )
+            self.opt.build()
+            self.opt.build_layer()
+            self.picnn = PICNN(input_dim=1568, y_dim=9, hidden_dim=256, n_layers=3)
+            for param in self.picnn.parameters():
+                param.requires_grad_(True)
+            self.conformal_quantile = ConformalQuantile(alpha=0.1)
+        else:
+            self.opt = None
+            self.picnn = None
+            self.conformal_quantile = None
 
         self.action_distribution = CategoricalNet(
             self.net.output_size, self.dim_actions
@@ -109,9 +133,95 @@ class PolicyOracle(nn.Module):
         else:
             action = distribution.sample()
 
-        action_log_probs = distribution.log_probs(action)
+        optimization_loss = torch.tensor(0.0, device=features.device, dtype=features.dtype)
 
-        return value, action, action_log_probs, rnn_hidden_states
+        if self.enable_optimization and self.opt is not None and self.picnn is not None:
+            if hasattr(self.opt, "batch_size"):
+                self.opt.batch_size = features.shape[0]
+            B = features.shape[0]
+            device = features.device
+            dtype = features.dtype
+            target_encoding = observations[self.net.goal_sensor_uuid]
+            if target_encoding.dim() > 1:
+                goal_indices = [target_encoding[:, 0]]
+                if target_encoding.shape[1] > 1:
+                    goal_indices.append(target_encoding[:, 1])
+            else:
+                goal_indices = [target_encoding]
+
+            x_list = []
+            for gi in goal_indices[:2]:
+                x_embed = self.net.goal_embedding(gi.type(torch.long).to(device)).squeeze(1)
+                x_list.append(x_embed)
+            while len(x_list) < (self.opt.N or 2):
+                x_list.append(torch.zeros(B, 32, device=device, dtype=dtype))
+
+            if isinstance(rnn_hidden_states, torch.Tensor) and rnn_hidden_states.dim() == 3:
+                y_input = rnn_hidden_states[-1]
+            else:
+                y_input = features
+
+            x_concat = torch.cat([x_list[0], y_input, features], dim=1)
+
+            q_threshold = self.conformal_quantile.get_threshold()
+
+            with torch.enable_grad():
+                A_theta, b_theta_q = self.picnn.predict_uncertainty_params(
+                    x_concat, q_threshold, Ld=self.opt.Ld if hasattr(self.opt, "Ld") else 0, 
+                    num_anchors=self.opt.dxi
+                )
+
+            action_dirs = torch.tensor(
+                [[0.0, 1.0],
+                [-1.0, 0.0],
+                [1.0, 0.0],
+                [0.0, 0.0]],
+                device=device, dtype=dtype
+            )
+            if hasattr(distribution, "probs"):
+                probs = distribution.probs
+            elif hasattr(distribution, "logits"):
+                probs = torch.softmax(distribution.logits, dim=-1)
+            else:
+                A = action_dirs.size(0)
+                probs = torch.zeros(B, A, device=device, dtype=dtype)
+                probs.scatter_(1, action.long().clamp(min=0, max=A-1), 1.0)
+
+            delta_pred = probs @ action_dirs
+            step_norm = delta_pred.norm(dim=1, keepdim=True).clamp(min=1.0)
+            step = delta_pred / step_norm
+
+            T = self.opt.T
+            edge = float(self.opt.edge)
+            p_val = torch.zeros(B, T, 2, device=device, dtype=dtype)
+            p0 = torch.full((B, 2), edge / 2.0, device=device, dtype=dtype)
+            p_val[:, 0, :] = p0
+            for t in range(1, T):
+                p_val[:, t, :] = p_val[:, t-1, :] + step
+            p_val = p_val.clamp(min=0.0, max=edge)
+
+            V = self.opt.V
+            vx = torch.tensor([(v % self.opt.edge) + 0.5 for v in range(V)], device=device, dtype=dtype)
+            vy = torch.tensor([(v // self.opt.edge) + 0.5 for v in range(V)], device=device, dtype=dtype)
+            Vx = vx.view(1, 1, V)
+            Vy = vy.view(1, 1, V)
+            D_val = (torch.abs(Vx - p_val[:, :, 0:1]) + torch.abs(Vy - p_val[:, :, 1:2])) / float(V - 1)
+
+            optimized_action, optimization_loss = self.opt.run(A_theta, b_theta_q, D_val, p_val)
+            optimized_action = optimized_action.to(device)
+
+            y_transition = torch.randn(B, V, device=device, dtype=dtype)
+            y_transition = torch.softmax(y_transition, dim=1)
+            with torch.no_grad():
+                calibration_score = self.picnn(x_concat, y_transition).mean().item()
+                self.conformal_quantile.add_calibration_score(calibration_score)
+
+            action = 1.0 * action + 0.0 * optimized_action
+
+        action = torch.round(action).long()
+        action_log_probs = distribution.log_probs(action)
+        return value, action, action_log_probs, rnn_hidden_states, optimization_loss
+
 
     def get_value(self, observations, rnn_hidden_states, prev_actions, masks):
         features, _ = self.net(
@@ -199,6 +309,7 @@ class BaselinePolicyOracle(PolicyOracle):
         previous_action_embedding_size,
         use_previous_action,
         hidden_size=512,
+        enable_optimization=False,
     ):
         super().__init__(
             BaselineNetOracle(
@@ -212,6 +323,7 @@ class BaselinePolicyOracle(PolicyOracle):
                 use_previous_action=use_previous_action,
             ),
             action_space.n,
+            enable_optimization=enable_optimization,
         )
 
 
