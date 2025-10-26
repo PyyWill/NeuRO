@@ -13,22 +13,22 @@
 
 - ✅ Completed
 1. ~~Release complete architecture code on original MultiON tasks~~ *(10/13/2025)*
+2. ~~Release model checkpoint weights~~ *(10/26/2025)*
 
 - 🔄 In Progress
-1. Release optimal weights
-2. Others
+1. To be continue
 
 ## 🗂️ Navigation
 
 - [📝 Abstract](#-abstract)
 - [🎬 Demo](#-a-demo-of-neuro-in-action)
 - [✨ Key Features](#-key-features)
+- [💾 Model Checkpoint](#-model-checkpoint)
 - [🛠️ Installation](#️-installation)
 - [🚀 Quick Start](#-quick-start)
 - [💻 Usage](#-usage)
 - [📚 Citation](#-citation)
 - [🙏 Acknowledgments](#-acknowledgments)
-
 
 ## 📝 Abstract
 
@@ -43,7 +43,17 @@
     <img src="assets/demo2.gif" width="45%" height="80px">
 </div>
 
+## 💾 Model Checkpoint
 
+We provide pretrained model weights for both NeuRO-enhanced OracleEgoMap agent and the original MultiON OracleEgoMap agent for comparison. Download the weights from the link below:
+
+**Google Drive**: [Model Checkpoints](https://drive.google.com/drive/folders/1Ag7jHGTFB6Ek1iEie9z8Wwnq2a6LUdM-?usp=drive_link)
+
+The checkpoint includes:
+- NeuRO agent weights (with conformal optimization)
+- Baseline MultiON agent weights
+
+Simply use the weights with the [evaluation](#-usage) code provided below. The evaluation will run on the 2-object navigation task by default.
 
 ## ✨ Key Features
 
@@ -84,8 +94,6 @@ git checkout 676e593b953e2f0530f307bc17b6de66cff2e867
 pip install -e .
 ```
 
-
-
 ## 🚀 Quick Start
 
 1. Clone the repository and install the requirements:
@@ -107,8 +115,6 @@ pip install -r requirements.txt
 2. Download data and checkpoints
 
 Thanks to the excellent work [MultiON](https://shivanshpatel35.github.io/multi-ON/), we adopted the instruction sets from their work. You will need to run `download_multion_data.sh` from our root directory.
-
-
 
 3. Download Matterport3D scenes
 
