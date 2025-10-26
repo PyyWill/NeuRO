@@ -1093,7 +1093,7 @@ class PPOTrainerO(BaseRLTrainerOracle):
         )
         rewards = rewards.unsqueeze(1)
 
-        task_weight = 0.0
+        task_weight = 0.2
         task_reward = optimization_loss
         if not torch.is_tensor(task_reward):
             task_reward = torch.tensor(task_reward, dtype=torch.float, device=current_episode_reward.device)
@@ -1106,8 +1106,8 @@ class PPOTrainerO(BaseRLTrainerOracle):
         task_reward = task_reward.to(rewards.device)
         reward_vector = torch.cat([rewards, task_reward], dim=1)
         goal_weights = torch.tensor([1.0, task_weight], device=rewards.device)
+        
         rewards = torch.sum(reward_vector * goal_weights.unsqueeze(0), dim=1, keepdim=True)
-
 
         masks = torch.tensor(
             [[0.0] if done else [1.0] for done in dones],
@@ -1500,6 +1500,7 @@ class PPOTrainerO(BaseRLTrainerOracle):
                     actions,
                     _,
                     test_recurrent_hidden_states,
+                    _,
                 ) = self.actor_critic.act(
                     batch,
                     test_recurrent_hidden_states,
