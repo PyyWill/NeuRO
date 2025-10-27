@@ -37,11 +37,13 @@
 ![Architecture](assets/teaser.png)
 
 ## 🎬 A demo of NeuRO in action!
+> Find two cylinders in the house!
 
 <div align="center">
     <img src="assets/demo1.gif" width="45%" height="80px">
     <img src="assets/demo2.gif" width="45%" height="80px">
 </div>
+
 
 ## 💾 Model Checkpoint
 
