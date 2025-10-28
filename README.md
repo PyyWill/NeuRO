@@ -52,7 +52,7 @@
 - **Multi-Object Navigation**: Supports both unordered and sequential multi-object navigation tasks
 - **State-of-the-Art Performance**: Establishes SoTA performance, particularly in generalization to unseen environments
 
-> For the application of NeuRO in capacity expansion tasks within **the power market** as mentioned in the appendix, please refer to this [repository](https://github.com/PyyWill/SURF).
+> ⚡ For the application of NeuRO in **capacity expansion tasks within the power market** as mentioned in the appendix, please refer to this [repository](https://github.com/PyyWill/SURF).
 
 ## 💾 Model Checkpoint
 
