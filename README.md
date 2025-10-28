@@ -44,6 +44,15 @@
     <img src="assets/demo2.gif" width="45%" height="80px">
 </div>
 
+## ✨ Key Features
+
+- **Robust Optimization Framework**: NeuRO integrates perception networks with downstream task-level robust optimization
+- **Uncertainty Quantification**: Uses Partially Input Convex Neural Networks (PICNNs) with conformal calibration to transform noisy visual predictions into convex uncertainty sets
+- **Transfer Learning**: Enables uncertainty-aware policies that transfer across environments
+- **Multi-Object Navigation**: Supports both unordered and sequential multi-object navigation tasks
+- **State-of-the-Art Performance**: Establishes SoTA performance, particularly in generalization to unseen environments
+
+> For the application of NeuRO in capacity expansion tasks within **the power market** as mentioned in the appendix, please refer to this [repository](https://github.com/PyyWill/SURF).
 
 ## 💾 Model Checkpoint
 
@@ -56,14 +65,6 @@ The checkpoint includes:
 - Baseline MultiON agent weights
 
 Simply use the weights with the [evaluation](#-usage) code provided below. The evaluation will run on the 2-object navigation task by default.
-
-## ✨ Key Features
-
-- **Robust Optimization Framework**: NeuRO integrates perception networks with downstream task-level robust optimization
-- **Uncertainty Quantification**: Uses Partially Input Convex Neural Networks (PICNNs) with conformal calibration to transform noisy visual predictions into convex uncertainty sets
-- **Transfer Learning**: Enables uncertainty-aware policies that transfer across environments
-- **Multi-Object Navigation**: Supports both unordered and sequential multi-object navigation tasks
-- **State-of-the-Art Performance**: Establishes SoTA performance, particularly in generalization to unseen environments
 
 ## 🛠️ Installation
 
