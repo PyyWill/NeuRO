@@ -14,6 +14,7 @@
 - ✅ Completed
 1. ~~Release complete architecture code on original MultiON tasks~~ *(10/13/2025)*
 2. ~~Release model checkpoint weights~~ *(10/26/2025)*
+3. ~~Release code for NeuRO in the power market task (see paper appendix)~~ *(10/27/2025)*
 
 - 🔄 In Progress
 1. To be continue
